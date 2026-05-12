@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>議事録アプリ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background:#f0f4f8;color:#2d3748;min-height:100vh}
+/* ── Auth Screen ── */
+#authScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.auth-box{background:white;border-radius:16px;padding:36px 32px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
+.auth-logo{text-align:center;margin-bottom:24px}
+.auth-logo .icon{font-size:2.8rem}
+.auth-logo h1{font-size:1.3rem;font-weight:700;color:#2b6cb0;margin-top:6px}
+.auth-logo p{font-size:.83rem;color:#a0aec0;margin-top:2px}
+.auth-tabs{display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:22px}
+.auth-tab{flex:1;padding:8px;text-align:center;font-size:.88rem;font-weight:600;cursor:pointer;color:#a0aec0;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+.auth-tab.active{color:#2b6cb0;border-bottom-color:#2b6cb0}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:.8rem;font-weight:600;color:#718096;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.form-group input{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:.95rem;outline:none;transition:border .2s}
+.form-group input:focus{border-color:#2b6cb0}
+.btn-full{width:100%;padding:11px;border-radius:8px;border:none;font-size:.97rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:4px}
+.btn-login{background:#2b6cb0;color:white}.btn-login:hover{background:#2c5282}
+.auth-err{background:#fff5f5;color:#e53e3e;border-radius:8px;padding:9px 12px;font-size:.85rem;margin-bottom:12px;display:none}
+.auth-err.vis{display:block}
+/* ── Main App ── */
+#app{display:none}
+header{background:#2b6cb0;color:white;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.hdr-left{display:flex;align-items:center;gap:10px}
+header h1{font-size:1.1rem;font-weight:700}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.user-badge{background:rgba(255,255,255,.2);border-radius:50px;padding:4px 12px;font-size:.82rem;font-weight:600}
+.btn-logout{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;border-radius:6px;padding:5px 12px;font-size:.8rem;cursor:pointer;font-weight:600}
+.btn-logout:hover{background:rgba(255,255,255,.25)}
+.container{max-width:960px;margin:0 auto;padding:18px 14px}
+.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:7px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.87rem;font-weight:600;transition:all .2s}
+.tab.active{background:#2b6cb0;color:white}
+.tab:not(.active){background:white;color:#4a5568;border:1px solid #e2e8f0}
+.tab:not(.active):hover{background:#ebf4ff}
+.card{background:white;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:12px}
+.card-title{font-size:.78rem;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.field-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.field{flex:1;min-width:150px}
+.field label{display:block;font-size:.78rem;font-weight:600;color:#718096;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:.9rem;outline:none;transition:border .2s;background:white}
+.field input:focus,.field select:focus{border-color:#2b6cb0}
+/* public toggle */
+.pub-toggle{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f7fafc;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;transition:all .2s}
+.pub-toggle.on{background:#f0fff4;border-color:#9ae6b4}
+.pub-toggle .toggle-dot{width:36px;height:20px;border-radius:50px;background:#cbd5e0;position:relative;transition:all .2s}
+.pub-toggle.on .toggle-dot{background:#38a169}
+.toggle-dot::after{content:'';position:absolute;width:16px;height:16px;background:white;border-radius:50%;top:2px;left:2px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.pub-toggle.on .toggle-dot::after{left:18px}
+.pub-label{font-size:.88rem;font-weight:600}
+/* speakers */
+.speakers-area{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px;align-items:center}
+.speaker-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:50px;border:2px solid #e2e8f0;background:white;font-size:.83rem;cursor:pointer;transition:all .2s;font-weight:600}
+.speaker-chip:hover{border-color:#90cdf4}
+.speaker-chip.selected{border-color:#2b6cb0;background:#ebf4ff;color:#2b6cb0}
+.speaker-chip .sdel{color:#a0aec0;font-size:.72rem;cursor:pointer;margin-left:2px}
+.speaker-chip .sdel:hover{color:#e53e3e}
+.add-speaker{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:50px;border:2px dashed #cbd5e0;background:white;font-size:.8rem;cursor:pointer;color:#718096;transition:all .2s}
+.add-speaker:hover{border-color:#2b6cb0;color:#2b6cb0}
+.sc-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+/* rec */
+.rec-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rec-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 22px;border-radius:50px;border:none;font-size:.92rem;font-weight:700;cursor:pointer;transition:all .2s}
+.rec-btn.start{background:#e53e3e;color:white;box-shadow:0 4px 10px rgba(229,62,62,.3)}
+.rec-btn.start:hover{background:#c53030}
+.rec-btn.stop{background:#718096;color:white}
+.pulse{display:inline-block;width:10px;height:10px;background:white;border-radius:50%;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.rec-status{font-size:.83rem;color:#718096}
+.rec-status.on{color:#e53e3e;font-weight:700}
+.interim{background:#fffbeb;border:1px solid #f6e05e;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.87rem;color:#744210;display:none}
+.interim.vis{display:block}
+/* log */
+.log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.log-header span{font-size:.78rem;font-weight:700;color:#718096;text-transform:uppercase;letter-spacing:.04em}
+.log{display:flex;flex-direction:column;gap:5px;max-height:340px;overflow-y:auto;padding-right:2px}
+.log-entry{display:flex;gap:9px;align-items:flex-start;background:#f7fafc;border-radius:8px;padding:8px 10px;border-left:3px solid #cbd5e0}
+.log-entry .ltime{font-size:.75rem;color:#a0aec0;white-space:nowrap;margin-top:2px;min-width:52px}
+.log-entry .lwho{font-size:.78rem;font-weight:700;white-space:nowrap;margin-top:2px}
+.log-entry .ltxt{font-size:.88rem;flex:1;line-height:1.55}
+.log-entry .ltxt[contenteditable]{outline:none;border-bottom:1px dashed #cbd5e0}
+.log-entry .ldel{color:#a0aec0;cursor:pointer;font-size:.75rem;padding:0 3px;margin-top:1px}
+.log-entry .ldel:hover{color:#e53e3e}
+.empty-log{text-align:center;padding:26px;color:#a0aec0;font-size:.85rem}
+/* buttons */
+.btn{padding:8px 16px;border-radius:8px;border:none;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:#2b6cb0;color:white}.btn-primary:hover{background:#2c5282}
+.btn-secondary{background:#edf2f7;color:#4a5568}.btn-secondary:hover{background:#e2e8f0}
+.btn-green{background:#276749;color:white}.btn-green:hover{background:#22543d}
+.btn-danger{background:#fff5f5;color:#e53e3e;border:1px solid #fed7d7}.btn-danger:hover{background:#fed7d7}
+.btn-sm{padding:3px 9px;border-radius:6px;border:1px solid #e2e8f0;background:white;font-size:.76rem;cursor:pointer;color:#4a5568;transition:all .15s}
+.btn-sm:hover{background:#ebf4ff;border-color:#2b6cb0;color:#2b6cb0}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+/* list */
+.mc{background:white;border-radius:12px;padding:15px 17px;box-shadow:0 1px 4px rgba(0,0,0,.08);border:2px solid transparent;transition:all .2s;margin-bottom:10px}
+.mc:hover{border-color:#bee3f8}
+.mc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.mc-title{font-weight:700;font-size:.95rem}
+.mc-date{font-size:.78rem;color:#a0aec0;white-space:nowrap}
+.mc-meta{font-size:.8rem;color:#718096;margin-top:4px}
+.mc-acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
+.pub-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:50px;font-size:.74rem;font-weight:700}
+.pub-badge.pub{background:#f0fff4;color:#276749;border:1px solid #9ae6b4}
+.pub-badge.prv{background:#f7fafc;color:#a0aec0;border:1px solid #e2e8f0}
+/* public board */
+.pub-card{background:white;border-radius:12px;padding:15px 17px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:10px}
+.pub-card-header{display:flex;justify-content:space-between;align-items:flex-start}
+.pub-card-title{font-weight:700;font-size:.95rem}
+.pub-card-author{font-size:.78rem;color:#a0aec0}
+.pub-log{margin-top:10px;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto}
+.pub-entry{display:flex;gap:8px;background:#f7fafc;border-radius:6px;padding:6px 9px;border-left:3px solid #cbd5e0}
+.pub-time{font-size:.73rem;color:#a0aec0;white-space:nowrap;min-width:50px}
+.pub-who{font-size:.76rem;font-weight:700;white-space:nowrap}
+.pub-txt{font-size:.86rem;flex:1;line-height:1.5}
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:200}
+.modal-bg.vis{display:flex}
+.modal{background:white;border-radius:14px;padding:22px;width:320px;max-width:95vw}
+.modal h3{margin-bottom:12px;font-size:.97rem}
+.modal input{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:.9rem;outline:none;margin-bottom:9px}
+.modal input:focus{border-color:#2b6cb0}
+.color-row{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+.color-dot{width:24px;height:24px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .2s}
+.color-dot.sel{border-color:#2d3748;transform:scale(1.15)}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+/* admin */
+.admin-table{width:100%;border-collapse:collapse;font-size:.87rem}
+.admin-table th{background:#edf2f7;padding:8px 10px;text-align:left;font-weight:700;color:#4a5568}
+.admin-table td{padding:8px 10px;border-bottom:1px solid #e2e8f0}
+.admin-table tr:last-child td{border:none}
+/* change pw */
+.change-pw-form{display:flex;flex-direction:column;gap:10px}
+/* toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#2d3748;color:white;padding:8px 20px;border-radius:50px;font-size:.86rem;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1}
+.badge{display:inline-block;background:#ebf4ff;color:#2b6cb0;border-radius:50px;padding:1px 8px;font-size:.74rem;font-weight:700;margin-left:5px}
+.empty{text-align:center;padding:40px 20px;color:#a0aec0}
+.empty .ei{font-size:2.5rem;margin-bottom:8px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:500px){.field-row{flex-direction:column}.actions{flex-direction:column}.rec-row{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+
+<!-- ── Auth Screen ── -->
+<div id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="icon">📋</div>
+      <h1>議事録アプリ</h1>
+      <p>社員番号でログインしてください</p>
+    </div>
+    <div class="auth-err" id="authErr"></div>
+    <div class="form-group">
+      <label>社員番号</label>
+      <input type="text" id="loginEmpId" placeholder="例：EMP001" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>パスワード</label>
+      <input type="password" id="loginPass" placeholder="パスワードを入力" autocomplete="current-password">
+    </div>
+    <button class="btn-full btn-login" onclick="doLogin()" id="loginBtn">ログイン</button>
+  </div>
+</div>
+
+<!-- ── Main App ── -->
+<div id="app">
+  <header>
+    <div class="hdr-left">
+      <span>📋</span>
+      <h1>議事録アプリ</h1>
+    </div>
+    <div class="hdr-right">
+      <span class="user-badge" id="userBadge"></span>
+      <button class="btn-logout" onclick="doLogout()">ログアウト</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="tabs" id="mainTabs">
+      <button class="tab active" onclick="switchTab('editor')">✏️ 新規作成</button>
+      <button class="tab" onclick="switchTab('mylist')">📂 マイ議事録 <span class="badge" id="myBadge">0</span></button>
+      <button class="tab" onclick="switchTab('public')">🌐 公開議事録</button>
+      <button class="tab" id="adminTabBtn" style="display:none" onclick="switchTab('admin')">⚙️ 管理</button>
+    </div>
+
+    <!-- Editor -->
+    <div id="tab-editor">
+      <div class="card">
+        <div class="field-row">
+          <div class="field">
+            <label>会議タイトル</label>
+            <input type="text" id="meetingTitle" placeholder="例：週次定例ミーティング">
+          </div>
+          <div class="field" style="max-width:160px">
+            <label>日付</label>
+            <input type="date" id="meetingDate">
+          </div>
+          <div class="field" style="max-width:180px">
+            <label>場所・備考</label>
+            <input type="text" id="meetingMemo" placeholder="例：会議室A">
+          </div>
+        </div>
+        <div class="pub-toggle" id="pubToggle" onclick="togglePublic()">
+          <div class="toggle-dot"></div>
+          <span class="pub-label" id="pubLabel">🔒 非公開（自分のみ）</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">👥 発言者</div>
+        <div class="speakers-area" id="speakersArea"></div>
+        <div style="font-size:.78rem;color:#a0aec0">発言者を選択してから録音してください</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🎙️ 録音・文字起こし</div>
+        <div class="rec-row">
+          <button class="rec-btn start" id="recBtn" onclick="toggleRec()"><span>🎙️</span> 録音開始</button>
+          <div class="rec-status" id="recStatus">発言者を選択してから録音開始</div>
+        </div>
+        <div class="interim" id="interimDiv"></div>
+        <div class="log-header" style="margin-top:8px">
+          <span>📝 発言ログ</span>
+          <button class="btn-sm" onclick="addManual()">＋ 手動追加</button>
+        </div>
+        <div class="log" id="logArea">
+          <div class="empty-log">録音を開始すると発言が記録されます</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="saveMinutes()">💾 保存</button>
+          <button class="btn btn-secondary" onclick="exportTxt()">📄 TXT</button>
+          <button class="btn btn-green" onclick="exportExcel()">📊 Excel</button>
+          <button class="btn btn-danger" onclick="resetAll()">🗑️ リセット</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- My List -->
+    <div id="tab-mylist" style="display:none">
+      <div id="myMinutesList"><div class="empty"><div class="ei">⏳</div>読み込み中...</div></div>
+    </div>
+
+    <!-- Public Board -->
+    <div id="tab-public" style="display:none">
+      <div class="card" style="margin-bottom:14px;padding:12px 16px;background:#ebf4ff;border:1px solid #bee3f8">
+        <span style="font-size:.85rem;color:#2b6cb0;font-weight:600">🌐 公開に設定された議事録が全員に表示されます</span>
+      </div>
+      <div id="publicBoard"><div class="empty"><div class="ei">⏳</div>読み込み中...</div></div>
+    </div>
+
+    <!-- Admin -->
+    <div id="tab-admin" style="display:none">
+      <div class="card">
+        <div class="card-title">👥 社員アカウント管理</div>
+        <div class="actions" style="margin-bottom:14px;margin-top:0">
+          <button class="btn btn-primary" onclick="openAddUser()">＋ 社員を追加</button>
+        </div>
+        <div id="userTable"><div class="empty"><div class="ei">⏳</div>読み込み中...</div></div>
+      </div>
+    </div>
+
+    <!-- Change PW (shown after login if must_change) -->
+    <div id="tab-changepw" style="display:none">
+      <div class="card" style="max-width:420px;margin:0 auto">
+        <div class="card-title">🔑 パスワードを変更してください</div>
+        <p style="font-size:.87rem;color:#718096;margin-bottom:14px">初回ログインのためパスワードの変更が必要です。</p>
+        <div class="change-pw-form">
+          <div class="form-group" style="margin-bottom:0">
+            <label>新しいパスワード</label>
+            <input type="password" id="newPw1" placeholder="8文字以上">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>確認（再入力）</label>
+            <input type="password" id="newPw2" placeholder="もう一度入力">
+          </div>
+          <button class="btn btn-primary" onclick="doChangePw()">変更する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Speaker Modal -->
+<div class="modal-bg" id="spkModal">
+  <div class="modal">
+    <h3>👤 発言者を追加</h3>
+    <input type="text" id="spkName" placeholder="名前（例：山田）" maxlength="20">
+    <div class="color-row" id="colorRow"></div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeSpkModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="addSpeaker()">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal-bg" id="addUserModal">
+  <div class="modal">
+    <h3>👤 社員アカウントを追加</h3>
+    <input type="text" id="newEmpId" placeholder="社員番号（例：EMP002）">
+    <input type="text" id="newDispName" placeholder="表示名（例：田中 太郎）">
+    <p style="font-size:.78rem;color:#a0aec0;margin-bottom:10px">初期パスワード：agekke8206（本人が後で変更）</p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="document.getElementById('addUserModal').className='modal-bg'">キャンセル</button>
+      <button class="btn btn-primary" onclick="doAddUser()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config ──
+const SUPA_URL = 'https://tzjcptkgkxdayvxlzwvs.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6amNwdGtna3hkYXl2eGx6d3ZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzMzNzUsImV4cCI6MjA5NDEwOTM3NX0.qKK0TH66nZh5PqtqbDJSRfHAmVddang78xVomFRY7E8';
+
+const H = { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY };
+
+async function sb(method, path, body) {
+  const r = await fetch(SUPA_URL + '/rest/v1/' + path, {
+    method, headers: { ...H, ...(method !== 'GET' ? { 'Prefer': 'return=representation' } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const t = await r.text();
+  return t ? JSON.parse(t) : [];
+}
+
+// ── State ──
+const COLORS = ['#e53e3e','#dd6b20','#d69e2e','#38a169','#2b6cb0','#6b46c1','#d53f8c','#2c7a7b'];
+let currentUser = null;
+let speakers = JSON.parse(localStorage.getItem('spk2') || '[{"name":"司会","color":"#2b6cb0"},{"name":"自分","color":"#38a169"}]');
+let selectedSpk = null;
+let logEntries = [];
+let isRec = false;
+let recognition = null;
+let currentMinuteId = null;
+let isPublic = false;
+let pickedColor = COLORS[0];
+
+// ── Auth ──
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const empId = document.getElementById('loginEmpId').value.trim();
+  const pass = document.getElementById('loginPass').value;
+
+  // ✅ 修正済み
+  if (!empId || !pass) {
+    showAuthErr('社員番号とパスワードを入力してください');
+    return;
+  }
+
+  const btn = document.getElementById('loginBtn');
+  btn.innerHTML = '<span class="spinner"></span> ログイン中...';
+  btn.disabled = true;
+
+  try {
+    const rows = await sb(
+      'GET',
+      `users?employee_id=eq.${encodeURIComponent(empId)}&select=*`
+    );
+
+    console.log('users取得:', rows); // ✅ デバッグ用
+
+    if (!rows.length) {
+      showAuthErr('社員番号が見つかりません');
+      return;
+    }
+
+    const user = rows[0];
+
+    const ok = await bcrypt.compare(pass, user.password_hash);
+
+    if (!ok) {
+      showAuthErr('パスワードが違います');
+      return;
+    }
+
+    currentUser = user;
+
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+
+    document.getElementById('userBadge').textContent =
+      user.display_name + '（' + user.employee_id + '）';
+
+    if (user.role === 'admin') {
+      document.getElementById('adminTabBtn').style.display = '';
+    }
+
+    document.getElementById('meetingDate').value =
+      new Date().toISOString().split('T')[0];
+
+  } catch (e) {
+    console.error(e); // ✅ 追加
+    showAuthErr('通信エラー: ' + e.message);
+  } finally {
+    btn.innerHTML = 'ログイン';
+    btn.disabled = false;
+  }
+}
+
+function showAuthErr(msg) {
+  const el = document.getElementById('authErr');
+  el.textContent = '⚠️ ' + msg;
+  el.className = 'auth-err vis';
+}
+
+function doLogout() {
+  currentUser = null;
+  logEntries = []; currentMinuteId = null; isPublic = false;
+  if (isRec) stopRec();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('loginEmpId').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('authErr').className = 'auth-err';
+}
+
+function showChangePw() {
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-changepw').style.display = '';
+  document.getElementById('mainTabs').style.opacity = '.4';
+  document.getElementById('mainTabs').style.pointerEvents = 'none';
+}
+
+async function doChangePw() {
+  const p1 = document.getElementById('newPw1').value;
+  const p2 = document.getElementById('newPw2').value;
+  if (p1.length < 6) { showToast('⚠️ 6文字以上で設定してください'); return; }
+  if (p1 !== p2) { showToast('⚠️ パスワードが一致しません'); return; }
+  const hash = await bcrypt.hash(p1, 10);
+  await sb('PATCH', `users?id=eq.${currentUser.id}`, { password_hash: hash, must_change_password: false });
+  currentUser.must_change_password = false;
+  document.getElementById('mainTabs').style.opacity = '';
+  document.getElementById('mainTabs').style.pointerEvents = '';
+  switchTab('editor');
+  showToast('✅ パスワードを変更しました');
+}
+
+// ── Tabs ──
+function switchTab(tab) {
+  const tabs = ['editor','mylist','public','admin','changepw'];
+  tabs.forEach(t => { const el = document.getElementById('tab-' + t); if (el) el.style.display = t === tab ? '' : 'none'; });
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const map = { editor: 0, mylist: 1, public: 2, admin: 3 };
+  const tabEls = document.querySelectorAll('.tab');
+  if (map[tab] !== undefined && tabEls[map[tab]]) tabEls[map[tab]].classList.add('active');
+  if (tab === 'mylist') loadMyMinutes();
+  if (tab === 'public') loadPublicBoard();
+  if (tab === 'admin') loadUsers();
+}
+
+// ── Public Toggle ──
+function togglePublic() {
+  isPublic = !isPublic;
+  const el = document.getElementById('pubToggle');
+  el.className = 'pub-toggle' + (isPublic ? ' on' : '');
+  document.getElementById('pubLabel').textContent = isPublic ? '🌐 公開（全員が閲覧できます）' : '🔒 非公開（自分のみ）';
+}
+
+// ── Speakers ──
+function renderSpeakers() {
+  const a = document.getElementById('speakersArea');
+  a.innerHTML = '';
+  speakers.forEach((s, i) => {
+    const c = document.createElement('div');
+    c.className = 'speaker-chip' + (selectedSpk === i ? ' selected' : '');
+    c.innerHTML = `<span class="sc-dot" style="background:${s.color}"></span>${esc(s.name)}<span class="sdel" onclick="delSpk(event,${i})">✕</span>`;
+    c.onclick = e => { if (!e.target.classList.contains('sdel')) selSpk(i); };
+    a.appendChild(c);
+  });
+  const add = document.createElement('div');
+  add.className = 'add-speaker';
+  add.textContent = '＋ 追加';
+  add.onclick = openSpkModal;
+  a.appendChild(add);
+}
+function selSpk(i) {
+  selectedSpk = selectedSpk === i ? null : i;
+  renderSpeakers();
+  const s = selectedSpk !== null ? speakers[selectedSpk] : null;
+  document.getElementById('recStatus').textContent = s ? `発言者：${s.name}　録音開始ボタンを押してください` : '発言者を選択してから録音開始';
+}
+function delSpk(e, i) {
+  e.stopPropagation();
+  speakers.splice(i, 1);
+  if (selectedSpk === i) selectedSpk = null;
+  else if (selectedSpk > i) selectedSpk--;
+  localStorage.setItem('spk2', JSON.stringify(speakers));
+  renderSpeakers();
+}
+function openSpkModal() {
+  pickedColor = COLORS[speakers.length % COLORS.length];
+  document.getElementById('spkName').value = '';
+  document.getElementById('colorRow').innerHTML = COLORS.map(c =>
+    `<div class="color-dot${c===pickedColor?' sel':''}" style="background:${c}" onclick="pickColor('${c}',this)"></div>`).join('');
+  document.getElementById('spkModal').className = 'modal-bg vis';
+  setTimeout(() => document.getElementById('spkName').focus(), 80);
+}
+function closeSpkModal() { document.getElementById('spkModal').className = 'modal-bg'; }
+function pickColor(c, el) {
+  pickedColor = c;
+  document.querySelectorAll('#colorRow .color-dot').forEach(d => d.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function addSpeaker() {
+  const n = document.getElementById('spkName').value.trim();
+  if (!n) { showToast('⚠️ 名前を入力してください'); return; }
+  speakers.push({ name: n, color: pickedColor });
+  localStorage.setItem('spk2', JSON.stringify(speakers));
+  renderSpeakers(); closeSpkModal();
+}
+document.getElementById('spkName').addEventListener('keydown', e => { if (e.key === 'Enter') addSpeaker(); });
+
+// ── Recording ──
+function toggleRec() { isRec ? stopRec() : startRec(); }
+function startRec() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast('⚠️ Chrome推奨です'); return; }
+  recognition = new SR();
+  recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true;
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t; else interim += t;
+    }
+    if (final) {
+      const s = selectedSpk !== null ? speakers[selectedSpk] : null;
+      pushLog(nowStr(), s ? s.name : '不明', s ? s.color : '#a0aec0', final.trim());
+    }
+    const id = document.getElementById('interimDiv');
+    if (interim) { id.textContent = '🎙️ ' + interim; id.className = 'interim vis'; }
+    else id.className = 'interim';
+  };
+  recognition.onerror = e => { if (e.error !== 'aborted') showToast('エラー: ' + e.error); stopRec(); };
+  recognition.onend = () => { if (isRec) recognition.start(); };
+  recognition.start(); isRec = true;
+  const btn = document.getElementById('recBtn');
+  btn.innerHTML = '<span class="pulse"></span> 録音停止'; btn.className = 'rec-btn stop';
+  const st = document.getElementById('recStatus');
+  const s = selectedSpk !== null ? speakers[selectedSpk] : null;
+  st.textContent = '🔴 録音中' + (s ? `（${s.name}）` : ''); st.className = 'rec-status on';
+}
+function stopRec() {
+  isRec = false;
+  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
+  document.getElementById('recBtn').innerHTML = '<span>🎙️</span> 録音開始';
+  document.getElementById('recBtn').className = 'rec-btn start';
+  document.getElementById('recStatus').textContent = '録音を停止しました';
+  document.getElementById('recStatus').className = 'rec-status';
+  document.getElementById('interimDiv').className = 'interim';
+}
+function nowStr() { const n = new Date(); return `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`; }
+function pad(n) { return String(n).padStart(2,'0'); }
+function pushLog(time, who, color, text) { logEntries.push({ time, who, color, text }); renderLog(); }
+function renderLog() {
+  const a = document.getElementById('logArea');
+  if (!logEntries.length) { a.innerHTML = '<div class="empty-log">録音を開始すると発言が記録されます</div>'; return; }
+  a.innerHTML = logEntries.map((e, i) => `
+    <div class="log-entry" style="border-left-color:${e.color}">
+      <div class="ltime">${e.time}</div>
+      <div class="lwho" style="color:${e.color}">${esc(e.who)}</div>
+      <div class="ltxt" contenteditable="true" oninput="logEntries[${i}].text=this.textContent">${esc(e.text)}</div>
+      <span class="ldel" onclick="logEntries.splice(${i},1);renderLog()">✕</span>
+    </div>`).join('');
+  a.scrollTop = a.scrollHeight;
+}
+function addManual() {
+  const s = selectedSpk !== null ? speakers[selectedSpk] : (speakers[0] || { name: '不明', color: '#a0aec0' });
+  pushLog(nowStr(), s.name, s.color, '（発言内容を入力）');
+}
+
+// ── Save / Export ──
+async function saveMinutes() {
+  const title = document.getElementById('meetingTitle').value.trim() || '無題の議事録';
+  const date = document.getElementById('meetingDate').value;
+  const memo = document.getElementById('meetingMemo').value.trim();
+  if (!logEntries.length && !title) { showToast('⚠️ 内容が空です'); return; }
+  const payload = { title, meeting_date: date || null, memo, log: logEntries, is_public: isPublic, user_id: currentUser.id };
+  let res;
+  if (currentMinuteId) {
+    payload.updated_at = new Date().toISOString();
+    res = await sb('PATCH', `minutes?id=eq.${currentMinuteId}`, payload);
+  } else {
+    res = await sb('POST', 'minutes', payload);
+    if (res && res[0]) currentMinuteId = res[0].id;
+  }
+  showToast('✅ 保存しました' + (isPublic ? '（公開中）' : ''));
+}
+
+function buildExportData() {
+  return {
+    title: document.getElementById('meetingTitle').value.trim() || '無題',
+    date: document.getElementById('meetingDate').value,
+    memo: document.getElementById('meetingMemo').value.trim(),
+    log: logEntries
+  };
+}
+function exportTxt() {
+  const d = buildExportData();
+  if (!d.log.length) { showToast('⚠️ 発言ログが空です'); return; }
+  let txt = `【議事録】${d.title}\n日付：${d.date}\n${d.memo ? '備考：' + d.memo + '\n' : ''}${'─'.repeat(42)}\n\n`;
+  d.log.forEach(e => { txt += `[${e.time}] ${e.who}\n${e.text}\n\n`; });
+  dl(new Blob([txt], { type: 'text/plain;charset=utf-8' }), d.title + '.txt');
+  showToast('📄 TXTを出力しました');
+}
+function exportExcel() {
+  const d = buildExportData();
+  if (!d.log.length) { showToast('⚠️ 発言ログが空です'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet([['会議タイトル', d.title], ['日付', d.date], ['備考', d.memo]]);
+  ws1['!cols'] = [{wch:16},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, ws1, '概要');
+  const rows = [['時刻','発言者','発言内容'], ...d.log.map(e => [e.time, e.who, e.text])];
+  const ws2 = XLSX.utils.aoa_to_sheet(rows);
+  ws2['!cols'] = [{wch:10},{wch:14},{wch:60}];
+  XLSX.utils.book_append_sheet(wb, ws2, '発言ログ');
+  XLSX.writeFile(wb, d.title + '.xlsx');
+  showToast('📊 Excelを出力しました');
+}
+function dl(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+
+function resetAll() {
+  if (!confirm('リセットしますか？')) return;
+  if (isRec) stopRec();
+  currentMinuteId = null; logEntries = []; isPublic = false;
+  document.getElementById('meetingTitle').value = '';
+  document.getElementById('meetingDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('meetingMemo').value = '';
+  document.getElementById('pubToggle').className = 'pub-toggle';
+  document.getElementById('pubLabel').textContent = '🔒 非公開（自分のみ）';
+  renderLog(); showToast('🗑️ リセットしました');
+}
+
+// ── My List ──
+async function loadMyMinutes() {
+  const el = document.getElementById('myMinutesList');
+  el.innerHTML = '<div class="empty"><div class="ei">⏳</div>読み込み中...</div>';
+  const rows = await sb('GET', `minutes?user_id=eq.${currentUser.id}&order=updated_at.desc&select=*`);
+  document.getElementById('myBadge').textContent = rows.length;
+  if (!rows.length) { el.innerHTML = '<div class="empty"><div class="ei">📭</div>議事録がありません</div>'; return; }
+  el.innerHTML = rows.map(m => `
+    <div class="mc">
+      <div class="mc-header">
+        <div class="mc-title">📋 ${esc(m.title)}</div>
+        <div class="mc-date">${m.meeting_date || ''}</div>
+      </div>
+      <div class="mc-meta">発言 ${(m.log||[]).length} 件${m.memo ? '　' + esc(m.memo) : ''}</div>
+      <div class="mc-acts">
+        <span class="pub-badge ${m.is_public ? 'pub' : 'prv'}">${m.is_public ? '🌐 公開中' : '🔒 非公開'}</span>
+        <button class="btn-sm" onclick="loadMinute('${m.id}')">✏️ 編集</button>
+        <button class="btn-sm" onclick="togglePub('${m.id}',${m.is_public})">${m.is_public ? '🔒 非公開にする' : '🌐 公開する'}</button>
+        <button class="btn-sm" onclick="exportSavedTxt(${JSON.stringify(m).replace(/"/g,'&quot;')})">📄 TXT</button>
+        <button class="btn-sm" onclick="exportSavedExcel(${JSON.stringify(m).replace(/"/g,'&quot;')})">📊 Excel</button>
+        <button class="btn-sm" style="color:#e53e3e" onclick="delMinute('${m.id}')">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+async function togglePub(id, cur) {
+  await sb('PATCH', `minutes?id=eq.${id}`, { is_public: !cur });
+  showToast(cur ? '🔒 非公開にしました' : '🌐 公開しました');
+  loadMyMinutes();
+}
+
+async function delMinute(id) {
+  if (!confirm('削除しますか？')) return;
+  await sb('DELETE', `minutes?id=eq.${id}`);
+  showToast('🗑️ 削除しました'); loadMyMinutes();
+}
+
+async function loadMinute(id) {
+  const rows = await sb('GET', `minutes?id=eq.${id}&select=*`);
+  if (!rows.length) return;
+  const m = rows[0];
+  currentMinuteId = m.id;
+  document.getElementById('meetingTitle').value = m.title;
+  document.getElementById('meetingDate').value = m.meeting_date || '';
+  document.getElementById('meetingMemo').value = m.memo || '';
+  logEntries = m.log || [];
+  isPublic = m.is_public;
+  document.getElementById('pubToggle').className = 'pub-toggle' + (isPublic ? ' on' : '');
+  document.getElementById('pubLabel').textContent = isPublic ? '🌐 公開（全員が閲覧できます）' : '🔒 非公開（自分のみ）';
+  renderLog(); switchTab('editor'); showToast('📂 読み込みました');
+}
+
+function exportSavedTxt(m) {
+  let txt = `【議事録】${m.title}\n日付：${m.meeting_date||''}\n${m.memo ? '備考：' + m.memo + '\n' : ''}${'─'.repeat(42)}\n\n`;
+  (m.log||[]).forEach(e => { txt += `[${e.time}] ${e.who}\n${e.text}\n\n`; });
+  dl(new Blob([txt], { type: 'text/plain;charset=utf-8' }), m.title + '.txt');
+}
+function exportSavedExcel(m) {
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet([['会議タイトル', m.title], ['日付', m.meeting_date||''], ['備考', m.memo||'']]);
+  ws1['!cols'] = [{wch:16},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, ws1, '概要');
+  const rows = [['時刻','発言者','発言内容'], ...(m.log||[]).map(e => [e.time, e.who, e.text])];
+  const ws2 = XLSX.utils.aoa_to_sheet(rows);
+  ws2['!cols'] = [{wch:10},{wch:14},{wch:60}];
+  XLSX.utils.book_append_sheet(wb, ws2, '発言ログ');
+  XLSX.writeFile(wb, m.title + '.xlsx');
+}
+
+// ── Public Board ──
+async function loadPublicBoard() {
+  const el = document.getElementById('publicBoard');
+  el.innerHTML = '<div class="empty"><div class="ei">⏳</div>読み込み中...</div>';
+  const rows = await sb('GET', 'minutes?is_public=eq.true&order=updated_at.desc&select=*,users(display_name,employee_id)');
+  if (!rows.length) { el.innerHTML = '<div class="empty"><div class="ei">📭</div>公開中の議事録はありません</div>'; return; }
+  el.innerHTML = rows.map(m => `
+    <div class="pub-card">
+      <div class="pub-card-header">
+        <div>
+          <div class="pub-card-title">📋 ${esc(m.title)}</div>
+          <div style="font-size:.78rem;color:#718096;margin-top:3px">${m.meeting_date||''}${m.memo ? '　' + esc(m.memo) : ''}</div>
+        </div>
+        <div class="pub-card-author">👤 ${m.users ? esc(m.users.display_name) : ''}</div>
+      </div>
+      <div class="pub-log">
+        ${(m.log||[]).map(e => `
+          <div class="pub-entry" style="border-left-color:${e.color||'#cbd5e0'}">
+            <div class="pub-time">${e.time}</div>
+            <div class="pub-who" style="color:${e.color||'#718096'}">${esc(e.who)}</div>
+            <div class="pub-txt">${esc(e.text)}</div>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn-sm" onclick="exportSavedTxt(${JSON.stringify(m).replace(/"/g,'&quot;')})">📄 TXT</button>
+        <button class="btn-sm" onclick="exportSavedExcel(${JSON.stringify(m).replace(/"/g,'&quot;')})">📊 Excel</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── Admin ──
+async function loadUsers() {
+  const el = document.getElementById('userTable');
+  const rows = await sb('GET', 'users?order=created_at.asc&select=*');
+  if (!rows.length) { el.innerHTML = '<div class="empty">ユーザーなし</div>'; return; }
+  el.innerHTML = `<table class="admin-table">
+    <thead><tr><th>社員番号</th><th>表示名</th><th>権限</th><th>PW変更要</th><th>操作</th></tr></thead>
+    <tbody>${rows.map(u => `
+      <tr>
+        <td>${esc(u.employee_id)}</td>
+        <td>${esc(u.display_name)}</td>
+        <td>${u.role === 'admin' ? '👑 管理者' : '一般'}</td>
+        <td>${u.must_change_password ? '⚠️ 未変更' : '✅'}</td>
+        <td style="display:flex;gap:5px">
+          <button class="btn-sm" onclick="resetPw('${u.id}')">PW初期化</button>
+          ${u.id !== currentUser.id ? `<button class="btn-sm" style="color:#e53e3e" onclick="delUser('${u.id}')">削除</button>` : ''}
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+function openAddUser() { document.getElementById('newEmpId').value = ''; document.getElementById('newDispName').value = ''; document.getElementById('addUserModal').className = 'modal-bg vis'; }
+
+async function doAddUser() {
+  const empId = document.getElementById('newEmpId').value.trim();
+  const name = document.getElementById('newDispName').value.trim();
+  if (!empId || !name) { showToast('⚠️ 全項目を入力してください'); return; }
+  const hash = await bcrypt.hash('agekke8206', 10);
+  const res = await sb('POST', 'users', { employee_id: empId, display_name: name, password_hash: hash, role: 'user', must_change_password: true });
+  if (res && !res.message) {
+    document.getElementById('addUserModal').className = 'modal-bg';
+    showToast('✅ 追加しました'); loadUsers();
+  } else {
+    showToast('⚠️ 追加失敗（社員番号が重複している可能性があります）');
+  }
+}
+
+async function resetPw(uid) {
+  if (!confirm('パスワードを agekke8206 にリセットしますか？')) return;
+  const hash = await bcrypt.hash('agekke8206', 10);
+  await sb('PATCH', `users?id=eq.${uid}`, { password_hash: hash, must_change_password: true });
+  showToast('✅ パスワードをリセットしました'); loadUsers();
+}
+
+async function delUser(uid) {
+  if (!confirm('このユーザーを削除しますか？（議事録も削除されます）')) return;
+  await sb('DELETE', `users?id=eq.${uid}`);
+  showToast('🗑️ 削除しました'); loadUsers();
+}
+
+// ── Utils ──
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show';
+  setTimeout(() => t.className = 'toast', 2600);
+}
+</script>
+</body>
+</html>
