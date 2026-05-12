@@ -77,6 +77,9 @@ header h1{font-size:1.1rem;font-weight:700}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .rec-status{font-size:.83rem;color:#718096}
 .rec-status.on{color:#e53e3e;font-weight:700}
+.mode-btn{padding:7px 14px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;font-size:.82rem;font-weight:600;cursor:pointer;color:#4a5568;transition:all .2s}
+.mode-btn:hover{border-color:#90cdf4;background:#ebf4ff}
+.mode-btn.active{border-color:#2b6cb0;background:#2b6cb0;color:white}
 .interim{background:#fffbeb;border:1px solid #f6e05e;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.87rem;color:#744210;display:none}
 .interim.vis{display:block}
 /* log */
@@ -225,6 +228,21 @@ header h1{font-size:1.1rem;font-weight:700}
 
       <div class="card">
         <div class="card-title">🎙️ 録音・文字起こし</div>
+        <!-- Mode selector -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <button class="mode-btn active" id="modeMic" onclick="setMode('mic')">🎤 自分が話す（マイク）</button>
+          <button class="mode-btn" id="modeStereo" onclick="setMode('stereo')">🔊 相手の発言（ステレオミキサー）</button>
+          <button class="mode-btn" id="modeManual" onclick="setMode('manual')">⌨️ 手動入力</button>
+        </div>
+        <div id="stereoNote" style="display:none;background:#ebf4ff;border:1px solid #bee3f8;border-radius:8px;padding:9px 13px;font-size:.82rem;color:#2b6cb0;margin-bottom:10px">
+          💡 ブラウザがマイク選択を求めたら <strong>「ステレオミキサー」</strong> を選んでください。Teamsの相手の声が文字起こしされます。
+        </div>
+        <div id="manualInputArea" style="display:none;margin-bottom:10px">
+          <div style="display:flex;gap:8px">
+            <input type="text" id="manualText" placeholder="発言内容を入力してEnter" style="flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:.9rem;outline:none">
+            <button class="btn btn-primary" onclick="submitManual()" style="white-space:nowrap">追加</button>
+          </div>
+        </div>
         <div class="rec-row">
           <button class="rec-btn start" id="recBtn" onclick="toggleRec()"><span>🎙️</span> 録音開始</button>
           <div class="rec-status" id="recStatus">発言者を選択してから録音開始</div>
@@ -501,11 +519,55 @@ function addSpeaker() {
 }
 document.getElementById('spkName').addEventListener('keydown', e => { if (e.key === 'Enter') addSpeaker(); });
 
+// ── Mode ──
+let currentMode = 'mic'; // 'mic' | 'stereo' | 'manual'
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+  document.getElementById('stereoNote').style.display = mode === 'stereo' ? '' : 'none';
+  document.getElementById('manualInputArea').style.display = mode === 'manual' ? '' : 'none';
+  const recRow = document.querySelector('.rec-row');
+  recRow.style.display = mode === 'manual' ? 'none' : 'flex';
+  if (isRec) stopRec();
+  const s = selectedSpk !== null ? speakers[selectedSpk] : null;
+  const spName = s ? `（発言者：${s.name}）` : '';
+  if (mode === 'mic') document.getElementById('recStatus').textContent = 'マイクで自分の発言を録音します' + spName;
+  else if (mode === 'stereo') document.getElementById('recStatus').textContent = 'ステレオミキサーで相手の声を録音します' + spName;
+  else document.getElementById('recStatus').textContent = 'テキストを入力して追加してください';
+}
+
+function submitManual() {
+  const input = document.getElementById('manualText');
+  const text = input.value.trim();
+  if (!text) return;
+  const s = selectedSpk !== null ? speakers[selectedSpk] : (speakers[0] || { name: '自分', color: '#2b6cb0' });
+  pushLog(nowStr(), s.name, s.color, text);
+  input.value = '';
+  input.focus();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const mi = document.getElementById('manualText');
+  if (mi) mi.addEventListener('keydown', e => { if (e.key === 'Enter') submitManual(); });
+});
+
 // ── Recording ──
 function toggleRec() { isRec ? stopRec() : startRec(); }
-function startRec() {
+async function startRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { showToast('⚠️ Chrome推奨です'); return; }
+
+  let stream = null;
+  if (currentMode === 'stereo') {
+    // ステレオミキサー：getUserMediaでユーザーにデバイス選択させる
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch(e) {
+      showToast('⚠️ マイクへのアクセスが拒否されました');
+      return;
+    }
+  }
+
   recognition = new SR();
   recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true;
   recognition.onresult = e => {
@@ -516,10 +578,12 @@ function startRec() {
     }
     if (final) {
       const s = selectedSpk !== null ? speakers[selectedSpk] : null;
-      pushLog(nowStr(), s ? s.name : '不明', s ? s.color : '#a0aec0', final.trim());
+      const who = currentMode === 'stereo' ? (s ? s.name : '相手') : (s ? s.name : '自分');
+      const color = s ? s.color : (currentMode === 'stereo' ? '#e53e3e' : '#2b6cb0');
+      pushLog(nowStr(), who, color, final.trim());
     }
     const id = document.getElementById('interimDiv');
-    if (interim) { id.textContent = '🎙️ ' + interim; id.className = 'interim vis'; }
+    if (interim) { id.textContent = (currentMode === 'stereo' ? '🔊 ' : '🎙️ ') + interim; id.className = 'interim vis'; }
     else id.className = 'interim';
   };
   recognition.onerror = e => { if (e.error !== 'aborted') showToast('エラー: ' + e.error); stopRec(); };
@@ -529,7 +593,8 @@ function startRec() {
   btn.innerHTML = '<span class="pulse"></span> 録音停止'; btn.className = 'rec-btn stop';
   const st = document.getElementById('recStatus');
   const s = selectedSpk !== null ? speakers[selectedSpk] : null;
-  st.textContent = '🔴 録音中' + (s ? `（${s.name}）` : ''); st.className = 'rec-status on';
+  const modeLabel = currentMode === 'stereo' ? '🔊 相手の発言を認識中' : '🔴 録音中';
+  st.textContent = modeLabel + (s ? `（${s.name}）` : ''); st.className = 'rec-status on';
 }
 function stopRec() {
   isRec = false;
