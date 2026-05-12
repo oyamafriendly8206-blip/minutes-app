@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>議事録アプリ</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bcrypt.js/2.4.3/bcrypt.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background:#f0f4f8;color:#2d3748;min-height:100vh}
@@ -354,57 +354,28 @@ document.getElementById('loginPass').addEventListener('keydown', e => { if (e.ke
 async function doLogin() {
   const empId = document.getElementById('loginEmpId').value.trim();
   const pass = document.getElementById('loginPass').value;
-
-  // ✅ 修正済み
-  if (!empId || !pass) {
-    showAuthErr('社員番号とパスワードを入力してください');
-    return;
-  }
-
+  if (!empId || !pass) { showAuthErr('社員番号とパスワードを入力してください'); return; }
   const btn = document.getElementById('loginBtn');
   btn.innerHTML = '<span class="spinner"></span> ログイン中...';
   btn.disabled = true;
-
   try {
-    const rows = await sb(
-      'GET',
-      `users?employee_id=eq.${encodeURIComponent(empId)}&select=*`
-    );
-
-    console.log('users取得:', rows); // ✅ デバッグ用
-
-    if (!rows.length) {
-      showAuthErr('社員番号が見つかりません');
-      return;
-    }
-
+    const rows = await sb('GET', `users?employee_id=eq.${encodeURIComponent(empId)}&select=*`);
+    if (!rows.length) { showAuthErr('社員番号が見つかりません'); return; }
     const user = rows[0];
-
     const ok = await bcrypt.compare(pass, user.password_hash);
-
-    if (!ok) {
-      showAuthErr('パスワードが違います');
-      return;
-    }
-
+    if (!ok) { showAuthErr('パスワードが違います'); return; }
     currentUser = user;
-
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
-
-    document.getElementById('userBadge').textContent =
-      user.display_name + '（' + user.employee_id + '）';
-
-    if (user.role === 'admin') {
-      document.getElementById('adminTabBtn').style.display = '';
+    document.getElementById('userBadge').textContent = user.display_name + '（' + user.employee_id + '）';
+    if (user.role === 'admin') document.getElementById('adminTabBtn').style.display = '';
+    document.getElementById('meetingDate').value = new Date().toISOString().split('T')[0];
+    renderSpeakers();
+    if (user.must_change_password) {
+      showChangePw();
     }
-
-    document.getElementById('meetingDate').value =
-      new Date().toISOString().split('T')[0];
-
-  } catch (e) {
-    console.error(e); // ✅ 追加
-    showAuthErr('通信エラー: ' + e.message);
+  } catch(e) {
+    showAuthErr('通信エラーが発生しました');
   } finally {
     btn.innerHTML = 'ログイン';
     btn.disabled = false;
