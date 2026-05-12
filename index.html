@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>議事録アプリ</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bcrypt.js/2.4.3/bcrypt.min.js"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background:#f0f4f8;color:#2d3748;min-height:100vh}
@@ -351,6 +351,11 @@ let pickedColor = COLORS[0];
 // ── Auth ──
 document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
 async function doLogin() {
   const empId = document.getElementById('loginEmpId').value.trim();
   const pass = document.getElementById('loginPass').value;
@@ -362,7 +367,8 @@ async function doLogin() {
     const rows = await sb('GET', `users?employee_id=eq.${encodeURIComponent(empId)}&select=*`);
     if (!rows.length) { showAuthErr('社員番号が見つかりません'); return; }
     const user = rows[0];
-    const ok = await bcrypt.compare(pass, user.password_hash);
+    const hashed = await sha256(pass);
+    const ok = user.password_hash === hashed;
     if (!ok) { showAuthErr('パスワードが違います'); return; }
     currentUser = user;
     document.getElementById('authScreen').style.display = 'none';
@@ -411,7 +417,7 @@ async function doChangePw() {
   const p2 = document.getElementById('newPw2').value;
   if (p1.length < 6) { showToast('⚠️ 6文字以上で設定してください'); return; }
   if (p1 !== p2) { showToast('⚠️ パスワードが一致しません'); return; }
-  const hash = await bcrypt.hash(p1, 10);
+  const hash = await sha256(p1);
   await sb('PATCH', `users?id=eq.${currentUser.id}`, { password_hash: hash, must_change_password: false });
   currentUser.must_change_password = false;
   document.getElementById('mainTabs').style.opacity = '';
@@ -742,7 +748,7 @@ async function doAddUser() {
   const empId = document.getElementById('newEmpId').value.trim();
   const name = document.getElementById('newDispName').value.trim();
   if (!empId || !name) { showToast('⚠️ 全項目を入力してください'); return; }
-  const hash = await bcrypt.hash('agekke8206', 10);
+  const hash = await sha256('agekke8206');
   const res = await sb('POST', 'users', { employee_id: empId, display_name: name, password_hash: hash, role: 'user', must_change_password: true });
   if (res && !res.message) {
     document.getElementById('addUserModal').className = 'modal-bg';
@@ -754,7 +760,7 @@ async function doAddUser() {
 
 async function resetPw(uid) {
   if (!confirm('パスワードを agekke8206 にリセットしますか？')) return;
-  const hash = await bcrypt.hash('agekke8206', 10);
+  const hash = await sha256('agekke8206');
   await sb('PATCH', `users?id=eq.${uid}`, { password_hash: hash, must_change_password: true });
   showToast('✅ パスワードをリセットしました'); loadUsers();
 }
