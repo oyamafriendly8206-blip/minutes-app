@@ -569,7 +569,11 @@ async function startRec() {
   }
 
   recognition = new SR();
-  recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true;
+  recognition.lang = 'ja-JP';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
   recognition.onresult = e => {
     let interim = '', final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -586,8 +590,17 @@ async function startRec() {
     if (interim) { id.textContent = (currentMode === 'stereo' ? '🔊 ' : '🎙️ ') + interim; id.className = 'interim vis'; }
     else id.className = 'interim';
   };
-  recognition.onerror = e => { if (e.error !== 'aborted') showToast('エラー: ' + e.error); stopRec(); };
-  recognition.onend = () => { if (isRec) recognition.start(); };
+  recognition.onerror = e => {
+    if (e.error === 'aborted' || e.error === 'no-speech') {
+      // 自動再起動
+      if (isRec) setTimeout(() => { if (isRec) recognition.start(); }, 300);
+    } else {
+      showToast('エラー: ' + e.error); stopRec();
+    }
+  };
+  recognition.onend = () => {
+    if (isRec) setTimeout(() => { if (isRec) recognition.start(); }, 300);
+  };
   recognition.start(); isRec = true;
   const btn = document.getElementById('recBtn');
   btn.innerHTML = '<span class="pulse"></span> 録音停止'; btn.className = 'rec-btn stop';
