@@ -340,13 +340,13 @@ header h1{font-size:1.1rem;font-weight:700}
 
 <script>
 // ── Config ──
-const SUPA_URL = 'https://tzjcptkgkxdayvxlzwvs.supabase.co';
+const SUPA_URL = 'https://tzjcptkgkxdayvxlzwvs.supabase.co/rest/v1';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6amNwdGtna3hkYXl2eGx6d3ZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzMzNzUsImV4cCI6MjA5NDEwOTM3NX0.qKK0TH66nZh5PqtqbDJSRfHAmVddang78xVomFRY7E8';
 
 const H = { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY };
 
 async function sb(method, path, body) {
-  const r = await fetch(SUPA_URL + '/rest/v1/' + path, {
+  const r = await fetch(SUPA_URL + '/' + path, {
     method, headers: { ...H, ...(method !== 'GET' ? { 'Prefer': 'return=representation' } : {}) },
     body: body ? JSON.stringify(body) : undefined
   });
