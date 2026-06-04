@@ -590,16 +590,24 @@ async function startRec() {
     if (interim) { id.textContent = (currentMode === 'stereo' ? '🔊 ' : '🎙️ ') + interim; id.className = 'interim vis'; }
     else id.className = 'interim';
   };
+  let restarting = false;
   recognition.onerror = e => {
     if (e.error === 'aborted' || e.error === 'no-speech') {
-      // 自動再起動
-      if (isRec) setTimeout(() => { if (isRec) recognition.start(); }, 300);
+      // onendで再起動するので何もしない
     } else {
       showToast('エラー: ' + e.error); stopRec();
     }
   };
   recognition.onend = () => {
-    if (isRec) setTimeout(() => { if (isRec) recognition.start(); }, 300);
+    if (isRec && !restarting) {
+      restarting = true;
+      setTimeout(() => {
+        restarting = false;
+        if (isRec) {
+          try { recognition.start(); } catch(e) { console.warn('再起動スキップ:', e); }
+        }
+      }, 500);
+    }
   };
   recognition.start(); isRec = true;
   const btn = document.getElementById('recBtn');
